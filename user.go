@@ -10,7 +10,7 @@ type User struct {
 	server *Server
 }
 
-// 创建一个用户的API
+// NewUser 创建一个用户的API
 func NewUser(conn net.Conn, server *Server) *User {
 	userAddr := conn.RemoteAddr().String()
 
@@ -52,12 +52,27 @@ func (this *User) Offline() {
 	this.server.Broadcast(this, "下线")
 }
 
-// DoMessage 用户处理消息
-func (this *User) DoMessage(msg string) {
-	this.server.Broadcast(this, msg)
+// SendMsg 给当前user对应的客户端发送消息（自己发给自己）
+func (this *User) SendMsg(msg string) {
+	this.conn.Write([]byte(msg))
 }
 
-// 监听当前User channel的方法，一旦有消息，就直接发给对端客户端
+// DoMessage 用户处理消息
+func (this *User) DoMessage(msg string) {
+	if msg == "who" {
+		// 查询当前在线用户
+		this.server.mapLock.Lock()
+		for _, user := range this.server.OnlineMap {
+			onlineMsg := "[" + user.Addr + "]" + user.Name + ":" + "在线...\n"
+			this.SendMsg(onlineMsg)
+		}
+		this.server.mapLock.Unlock()
+	} else {
+		this.server.Broadcast(this, msg)
+	}
+}
+
+// ListenMessage 监听当前User channel的方法，一旦有消息，就直接发给对端客户端
 func (this *User) ListenMessage() {
 	for {
 		msg := <-this.C
